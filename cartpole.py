@@ -4,11 +4,16 @@ import numpy as np
 
 import tensorflow as tf
 from rl_tools import Memory, DQN, greedy, boltzman, select_action_randomly, create_copy_weights, update_weights, create_update_target_graphs
+
+
+
+#======= ALL CONSTANTS ARE LOCATED HERE =====
+# Learning_rate, eps, update_rate etc...
+#========================================
 from const import *
 
 import gym
-
-env = gym.make('CartPole-v1')
+env = gym.make('CartPole-v1') #Works only on v1 at the moment, don't change this
 observation = env.reset()
 env.render()
 
@@ -36,6 +41,7 @@ with tf.Session() as sess:
     res1 = sess.run([main_net.forward],feed_dict={main_net.state_in:test1})[0][0]
     res2 = sess.run([target_net.forward],feed_dict={target_net.state_in:test1})[0][0]
     assert np.array_equal(res1,res2)
+    # Check if both network shares same weights
     
     memory = Memory(MEMORY_SIZE)
 
@@ -50,13 +56,13 @@ with tf.Session() as sess:
             if EXPLOR=='eps'and np.random.random(1)[0]<eps:
                 action = select_action_randomly()
                 eps = max(eps-EPS_STEP, EPS_END)
-            else:
+            else: # Softmax aka boltzman
                 # batch of size 1, so you take the first elem [0]
                 out_value = sess.run([main_net.forward],feed_dict={main_net.state_in:observation})[0][0]
                 action = select_action(out_value)
 
-                if total_actions_done % 100 == 0:
-                    print("out_value :",out_value)
+                # if total_actions_done % 100 == 0:
+                #     print("out_value :",out_value)
 
             
             next_observation, reward, done, info = env.step(action)
@@ -65,7 +71,7 @@ with tf.Session() as sess:
 
             if done:
                 if num_action_for_this_ep>=499:
-                    print("WIN")
+                    print("WIN, 500")
                     memory.add_entry([observation[0], action, next_observation,1])
                 else:
                     memory.add_entry([observation[0], action, next_observation,0])
@@ -93,22 +99,13 @@ with tf.Session() as sess:
                 current_states = np.vstack(batch[:,0])
                 next_states = np.vstack(batch[:,2])
                 rewards = batch[:,3]
-
-                #print("current_states",current_states)
-                #print("next_states", next_states)
-
                 actions = np.array(batch[:,1],dtype=int)
                 #Reformating input so it can be taken as input for tensorflow gather_nd function
                 actions = np.concatenate((np.arange(BATCH_SIZE), actions), axis=0).reshape(2,BATCH_SIZE).T
 
-                #print("actions",actions)
 
-                
                 next_state_q = target_net.forward.eval(feed_dict={target_net.state_in:next_states})
-
-                #print("next_state_value",next_state_q)
                 next_state_q = next_state_q.max(1)
-                #print("next_state_q",next_state_q)
 
                 ref_next_q = next_state_q*DISCOUNT_FACT + reward
                 ref_next_q[np.where(rewards==0)] = 0
